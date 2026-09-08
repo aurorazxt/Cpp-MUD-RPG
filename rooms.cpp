@@ -84,14 +84,14 @@ World::World() {
 
     rooms[0]->getExits()["right"] = 2;
     rooms[0]->getExits()["up"] = 1;
-    rooms[1]->getExits()["left"] = 0;
-    rooms[1]->getExits()["up"] = 3;
-    rooms[2]->getExits()["down"] = 0;
-    rooms[2]->getExits()["right"] = 3;
+    rooms[1]->getExits()["down"] = 0;//
+    rooms[1]->getExits()["right"] = 3;//
+    rooms[2]->getExits()["left"] = 0;
+    rooms[2]->getExits()["up"] = 3;
     rooms[3]->getExits()["up"] = 4;
-    rooms[3]->getExits()["down"] = 1;
+    rooms[3]->getExits()["down"] = 2;//
     rooms[3]->getExits()["right"] = 5;
-    rooms[3]->getExits()["left"] = 2;
+    rooms[3]->getExits()["left"] = 1;//
     rooms[4]->getExits()["down"] = 3;
     rooms[4]->getExits()["right"] = 6;
     rooms[5]->getExits()["left"] = 3;
