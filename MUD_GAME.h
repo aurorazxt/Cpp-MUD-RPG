@@ -176,34 +176,33 @@ class Room;
 class World {
 private:
 	map<int, shared_ptr<Room>> rooms;
-	int currentRoomid;
+	int currentRoomId;
 public:
 	World();
-	bool movePlayer(string dir);
+	bool movePlayer(const string& dir);
 	shared_ptr<Room> getCurrentRoom();
 	shared_ptr<Room> getRoomById(int id);
 	int getCurrentRoomId();
-	void setCurrentRoomId(int id);
-	map<int, shared_ptr<Room>> getAllRooms();
+	void setCurrentRoom(int id);
+	map<int, shared_ptr<Room>>& getAllRooms();
 	map<int, shared_ptr<Room>>& loadRooms(map<int, shared_ptr<Room>>& roomData);
 };
 
 //房间
 class Room {
-protected:
-	int Id;
+private:
+	int id;
 	string name;
 	string description;
-	map<string, int> exit;
+	map<string, int> exits;
 public:
-	Room();
-	Room(int id, string n, string desc);
-	virtual void onEnter();
-	map<string, int> getExits();
-	string getDescription();
+	Room(int id, const string& name, const string& description);
+	virtual ~Room();
+	void onEnter();
+	map<string, int>& getExits();
 	string getName();
-	int getId();
 };
+
 
 //具体房间
 class shopRoom : public Room {
@@ -211,7 +210,6 @@ private:
 	vector<shared_ptr<Item>> goods;
 public:
 	shopRoom(int id, const string& name, const string& description);
-	void onEnter()override;
 	const vector<shared_ptr<Item>>& getGoods();
 	void addGood(shared_ptr<Item> good);
 };
@@ -221,7 +219,6 @@ private:
 	vector<shared_ptr<Npc>> npcs;
 public:
 	npcRoom(int id, const string& name, const string& description);
-	void onEnter()override;
 	const vector<shared_ptr<Npc>>& getNpcs();
 	void addNPC(shared_ptr<Npc> npc);
 };
@@ -231,8 +228,8 @@ private:
 	vector<shared_ptr<Enemy>> enemy;
 public:
 	combatRoom(int id, const string& name, const string& description);
-	void onEnter()override;
 	const vector<shared_ptr<Enemy>>& getEnemy();
+	const vector<shared_ptr<Enemy>>& getCurrentEnemy();
 	void addEnemy(shared_ptr<Enemy> enemy);
 };
 
