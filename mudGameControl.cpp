@@ -49,74 +49,184 @@ void MudGame::selectColorTheme()
 
 void MudGame::initWorld()
 {
-	//获取世界所有房间
 	auto& allRooms = world.getAllRooms();
 
-	// 1号 npcRoom：废弃医院 添加NPC
-	auto room1 = dynamic_pointer_cast<npcRoom>(allRooms[1]);
+	// ==================== 普通NPC ====================
+
+	auto room1 =
+		dynamic_pointer_cast<npcRoom>(
+			allRooms[1]
+		);
+
 	if (room1)
 	{
-		auto npc1 = make_shared<Npc>("受伤幸存者");
-		npc1->addTalkOption("询问发生了什么");
-		npc1->addTalkOption("给予帮助");
+		auto npc1 =
+			make_shared<Npc>(
+				"受伤幸存者"
+			);
+
+		npc1->addTalkOption(
+			"询问发生了什么"
+		);
+
+		npc1->addTalkOption(
+			"给予帮助"
+		);
+
+		// 配置帮助NPC后的奖励
+		npc1->setRewardItem(
+			ItemFactory::createItem(
+				"first_aid_spray"
+			)
+		);
+
 		room1->addNPC(npc1);
 	}
 
-	//5号 npcRoom：数据酒吧 添加商人NPC
-	auto room5 = dynamic_pointer_cast<npcRoom>(allRooms[5]);
+	// ==================== 商人NPC ====================
+
+	auto room5 =
+		dynamic_pointer_cast<npcRoom>(
+			allRooms[5]
+		);
+
 	if (room5)
 	{
-		auto merchant = make_shared<MerchantNpc>("黑市商人");
-		//预设商人商品
-		Weapon w1("破片小刀", 5, 40);
-		Weapon w2("脉冲刃", 12, 120);
-		Consumable c1("急救喷雾", 30, 0, 25);
-		Consumable c2("狂暴药剂", 20, 8, 50);
-		merchant->AddshopWeapon(w1);
-		merchant->AddshopWeapon(w2);
+		auto merchant =
+			make_shared<MerchantNpc>(
+				"黑市商人"
+			);
+
+		Weapon w1(
+			"scrap_knife",
+			"破片小刀",
+			5,
+			40,
+			"用金属碎片打磨而成的小刀。"
+		);
+
+		Weapon w2(
+			"pulse_blade",
+			"脉冲刃",
+			12,
+			120,
+			"刀刃周围环绕着高频能量脉冲。"
+		);
+
+		Consumable c1(
+			"first_aid_spray",
+			"急救喷雾",
+			30,
+			0,
+			0,
+			25,
+			"恢复30点生命值。"
+		);
+
+		Consumable c2(
+			"berserk_potion",
+			"狂暴药剂",
+			20,
+			8,
+			3,
+			50,
+			"恢复20点生命值，并临时提高攻击力。"
+		);
+
+		merchant->addShopWeapon(w1);
+		merchant->addShopWeapon(w2);
+
 		merchant->addShopConsumable(c1);
 		merchant->addShopConsumable(c2);
+
 		room5->addNPC(merchant);
 	}
 
-	//战斗房间填充敌人
-	auto room2 = dynamic_pointer_cast<combatRoom>(allRooms[2]);
+	// ==================== 敌人一 ====================
+
+	auto room2 =
+		dynamic_pointer_cast<combatRoom>(
+			allRooms[2]
+		);
+
 	if (room2)
 	{
-		auto e1 = make_shared<Enemy>();
-		e1->setName("机械流浪者");
-		e1->setHp(60); e1->setMaxHp(60);
-		e1->setAtkBase(8); e1->setMoney(30);
+		auto e1 = make_shared<Enemy>(
+			"机械流浪者",
+			60,                      // HP
+			8,                       // 攻击力
+			30,                      // 掉落金币
+			35,                      // 经验值
+			1,                       // 等级
+			EnemyAIType::Normal
+		);
+
 		room2->addEnemy(e1);
 	}
 
-	auto room3 = dynamic_pointer_cast<combatRoom>(allRooms[3]);
+	// ==================== 敌人二 ====================
+
+	auto room3 =
+		dynamic_pointer_cast<combatRoom>(
+			allRooms[3]
+		);
+
 	if (room3)
 	{
-		auto e2 = make_shared<Enemy>();
-		e2->setName("废铁狂徒");
-		e2->setHp(90); e2->setMaxHp(90);
-		e2->setAtkBase(11); e2->setMoney(50);
+		auto e2 = make_shared<Enemy>(
+			"废铁狂徒",
+			90,
+			11,
+			50,
+			60,
+			2,
+			EnemyAIType::Heavy
+		);
+
 		room3->addEnemy(e2);
 	}
 
-	auto room4 = dynamic_pointer_cast<combatRoom>(allRooms[4]);
+	// ==================== 敌人三 ====================
+
+	auto room4 =
+		dynamic_pointer_cast<combatRoom>(
+			allRooms[4]
+		);
+
 	if (room4)
 	{
-		auto e3 = make_shared<Enemy>();
-		e3->setName("矿区变异体");
-		e3->setHp(120); e3->setMaxHp(120);
-		e3->setAtkBase(14); e3->setMoney(70);
+		auto e3 = make_shared<Enemy>(
+			"矿区变异体",
+			120,
+			14,
+			70,
+			90,
+			3,
+			EnemyAIType::Berserk
+		);
+
 		room4->addEnemy(e3);
 	}
 
-	auto room6 = dynamic_pointer_cast<combatRoom>(allRooms[6]);
+	// ==================== 敌人四 ====================
+
+	auto room6 =
+		dynamic_pointer_cast<combatRoom>(
+			allRooms[6]
+		);
+
 	if (room6)
 	{
-		auto e4 = make_shared<Enemy>();
-		e4->setName("蜘蛛母巢守卫");
-		e4->setHp(180); e4->setMaxHp(180);
-		e4->setAtkBase(18); e4->setMoney(120);
+		auto e4 = make_shared<Enemy>(
+			"蜘蛛母巢守卫",
+			180,
+			18,
+			120,
+			160,
+			5,
+			EnemyAIType::Boss
+		);
+
 		room6->addEnemy(e4);
 	}
 }
