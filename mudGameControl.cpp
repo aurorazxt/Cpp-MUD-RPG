@@ -118,8 +118,8 @@ void MudGame::showMainUI()
 	cout << "==== MUD赛博文字冒险游戏 ====\n";
 	color.applyOption();
 	cout << "1.查看角色状态     2.查看地图\n";
-	cout << "3.进入霓虹市集     4.战斗   \n";
-	cout << "5.更换颜色主题     6.存档游戏      7.读取存档\n";
+	cout << "3.进入霓虹市集     4.战斗          5.巡视四周\n";
+	cout << "6.更换颜色主题     7.存档游戏      8.读取存档\n";
 	cout << "0.退出游戏\n";
 	color.resetColor();
 
@@ -320,23 +320,76 @@ void MudGame::parseMainCmd(int opt)
 		system("pause");
 		break;
 	}
-	case 5:
+	case 6:
 		selectColorTheme();
 		break;
-	case 6:
+	case 7:
 		if (saveGame())
 			cout << "√存档成功保存到save.txt\n";
 		else
 			cout << "×存档失败\n";
 		system("pause");
 		break;
-	case 7:
+	case 8:
 		if (loadGame())
 			cout << "√读取存档成功\n";
 		else
 			cout << "×读取存档失败，存档文件不存在或损坏\n";
 		system("pause");
 		break;
+	case 5:
+	{
+		system("cls");
+		color.applyInfo();
+		auto curRoom = world.getCurrentRoom();
+		auto npcRoomPtr = dynamic_pointer_cast<npcRoom>(curRoom);
+		if (!npcRoomPtr)
+		{
+			cout << "你巡视四周，这里没有可以交谈的NPC。\n";
+		}
+		else
+		{
+			const auto& npcList = npcRoomPtr->getNpcs();
+			if (npcList.empty())
+			{
+				cout << "房间内没有NPC。\n";
+			}
+			else
+			{
+				cout << "【巡视四周：发现在场NPC】\n";
+				for (size_t i = 0; i < npcList.size(); i++)
+				{
+					cout << i + 1 << ". " << npcList[i]->getName() << endl;
+				}
+				cout << "\n是否进行对话？1=开始对话  0=离开\n请输入选择：";
+				int talkSelect;
+				cin >> talkSelect;
+				if (talkSelect == 1)
+				{
+					cout << "请选择要交谈的NPC编号：";
+					int npcIdx;
+					cin >> npcIdx;
+					npcIdx -= 1;
+					if (npcIdx >= 0 && npcIdx < (int)npcList.size())
+					{
+						auto targetNpc = npcList[npcIdx];
+						targetNpc->doTalk(color);
+					}
+					else
+					{
+						cout << "无效的NPC编号!\n";
+					}
+				}
+				else
+				{
+					cout << "你决定不进行交谈。\n";
+				}
+			}
+		}
+		color.resetColor();
+		system("pause");
+		break;
+	}
 	case 0:
 		cout << "游戏即将退出...\n";
 		break;
