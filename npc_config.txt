@@ -1,0 +1,23 @@
+# 注释行以#开头
+[Npc=受伤幸存者]
+talk_1=我在这场灾难里逃了出来，身上伤势很重，到处都是危险的怪物。
+talk_2=如果你愿意帮助我，我会把我珍藏的武器送给你。
+help_tip=你选择帮助受伤幸存者，给他包扎伤口。
+reward_type=Weapon
+reward_name=锈蚀战刃
+reward_price=60
+reward_atkBonus=10
+reward_desc=一把生锈但是依旧锋利的战刃
+---
+[Npc=酒吧酒保]
+talk_1=欢迎来到数据酒吧，外面的世界很残酷。
+talk_2=我听说蜘蛛巢穴深处有强大的怪物。
+help_tip=你帮酒保修理坏掉的吧台线路。
+reward_type=Consumable
+reward_name=高级恢复药剂
+reward_price=45
+reward_Restore=50
+reward_atkBounsTemp=0
+reward_duration=1
+reward_desc=强效恢复药剂
+---

@@ -1,454 +1,345 @@
 #include "MUD_GAME.h"
-
-#include <algorithm>
 #include <iostream>
-#include <limits>
-
+#include <algorithm>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <string>
 using namespace std;
 
-// ==================== Enemy实现 ====================
-
-Enemy::Enemy()
-	: Character(),
-	  DropGold(0),
-	  expvalue(0),
-	  level(1),
-	  aiType(EnemyAIType::Normal),
-	  rewardClaimed(false)
+// ---------------- 新增：本地配置结构体，仅cpp内部可见，不碰头文件 ----------------
+struct NpcConfig
 {
+    string npcName;
+    vector<string> talkLines;      // 对话选项文本
+    string helpTip;                // 帮助时输出文本
+    string rewardType;             // Weapon / Consumable
+    string rewardName;
+    int rewardPrice{};
+    int rewardAtkBonus{};         // weapon用
+    int rewardRestore{};           // consumable用
+    int rewardTempAtk{};          // consumable用
+    int rewardDuration{};         // consumable用
+    string rewardDesc;
+};
+
+// 从txt读取全部npc配置，私有工具函数，不写进头文件
+static vector<NpcConfig> loadNpcConfigFromTxt(const string& filePath)
+{
+    vector<NpcConfig> cfgList;
+    ifstream fin(filePath);
+    if (!fin.is_open())
+    {
+        cout << "[警告]无法打开npc_config.txt，NPC无外部对话配置\n";
+        return cfgList;
+    }
+    string line;
+    NpcConfig curCfg;
+    bool inBlock = false;
+
+    auto trim = [](string s) {
+        size_t start = s.find_first_not_of(" \t\r\n");
+        size_t end = s.find_last_not_of(" \t\r\n");
+        if (start == string::npos) return string("");
+        return s.substr(start, end - start + 1);
+        };
+
+    while (getline(fin, line))
+    {
+        line = trim(line);
+        if (line.empty() || line[0] == '#') continue;
+
+        if (line.substr(0, 5) == "[Npc=")
+        {
+            // 开启新npc块
+            if (inBlock) cfgList.push_back(curCfg);
+            curCfg = NpcConfig{};
+            size_t left = line.find('=');
+            size_t right = line.find(']');
+            curCfg.npcName = line.substr(left + 1, right - left - 1);
+            curCfg.npcName = trim(curCfg.npcName);
+            inBlock = true;
+            continue;
+        }
+        if (line == "---")
+        {
+            if (inBlock)
+            {
+                cfgList.push_back(curCfg);
+                curCfg = NpcConfig{};
+                inBlock = false;
+            }
+            continue;
+        }
+        if (!inBlock) continue;
+
+        size_t eqPos = line.find('=');
+        if (eqPos == string::npos) continue;
+        string key = trim(line.substr(0, eqPos));
+        string val = trim(line.substr(eqPos + 1));
+
+        if (key.substr(0, 5) == "talk_")
+        {
+            curCfg.talkLines.push_back(val);
+        }
+        else if (key == "help_tip")
+        {
+            curCfg.helpTip = val;
+        }
+        else if (key == "reward_type")
+        {
+            curCfg.rewardType = val;
+        }
+        else if (key == "reward_name")
+        {
+            curCfg.rewardName = val;
+        }
+        else if (key == "reward_price")
+        {
+            curCfg.rewardPrice = stoi(val);
+        }
+        else if (key == "reward_atkBonus")
+        {
+            curCfg.rewardAtkBonus = stoi(val);
+        }
+        else if (key == "reward_Restore")
+        {
+            curCfg.rewardRestore = stoi(val);
+        }
+        else if (key == "reward_atkBounsTemp")
+        {
+            curCfg.rewardTempAtk = stoi(val);
+        }
+        else if (key == "reward_duration")
+        {
+            curCfg.rewardDuration = stoi(val);
+        }
+        else if (key == "reward_desc")
+        {
+            curCfg.rewardDesc = val;
+        }
+    }
+    if (inBlock) cfgList.push_back(curCfg);
+    fin.close();
+    return cfgList;
 }
 
-Enemy::Enemy(
-	string enemyName,
-	int enemyHp,
-	int enemyAtk,
-	int dropGold,
-	int expValue,
-	int enemyLevel,
-	EnemyAIType type
-)
-	: Character(
-		enemyName,
-		max(1, enemyHp),
-		max(0, enemyAtk),
-		0
-	),
-	  DropGold(max(0, dropGold)),
-	  expvalue(max(0, expValue)),
-	  level(max(1, enemyLevel)),
-	  aiType(type),
-	  rewardClaimed(false)
+// 根据npc名字查找配置，仅cpp内部使用
+static const NpcConfig* findNpcConfig(const vector<NpcConfig>& cfgList, const string& npcName)
 {
-	setName(enemyName);
-	setMaxHp(max(1, enemyHp));
-	setHp(getMaxHp());
-	setAtkBase(max(0, enemyAtk));
-
-	// 敌人不使用Character中的money作为掉落金币
-	setMoney(0);
+    for (auto& cfg : cfgList)
+    {
+        if (cfg.npcName == npcName)
+        {
+            return &cfg;
+        }
+    }
+    return nullptr;
 }
 
+//================ Enemy实现 =================
+Enemy::Enemy() :Character(), DropGold(0), expvalue(100), level(1)
+{
+}
 void Enemy::enemyAttack(Player& player)
 {
-	if (!IsAlive() || !player.isAlive())
-	{
-		return;
-	}
-
-	int damage = max(0, getTotalAtk());
-
-	player.takeDamage(damage);
+    if (!isAlive()) return;
+    player.takeDamage(getTotalAtk());
 }
-
 void Enemy::generateDrops()
 {
-	// 具体掉落概率将在模块四实现
-	// 目前先清除上一次没有领取的掉落物
-	clearGeneratedDrops();
-}
 
+}
 int Enemy::getDropGold()
 {
-	return DropGold;
+    DropGold = getMoney();
+    return DropGold;
 }
-
 int Enemy::getExpValue()
 {
-	return expvalue;
+
+    return expvalue;
 }
-
-// ==================== Npc实现 ====================
-
-Npc::Npc()
-	: Character(),
-	  hiddenHp(0),
-	  rewardItem(nullptr),
-	  isHelped(false)
+//================ Npc实现 =================
+Npc::Npc() :Character(), hiddenHp(0), rewardItem(nullptr), isHelped(false)
 {
 }
-
-Npc::Npc(string npcName)
-	: Character(npcName, 1, 0, 0),
-	  hiddenHp(0),
-	  rewardItem(nullptr),
-	  isHelped(false)
+Npc::Npc(string npcName) :Character(npcName, 1, 0, 0), hiddenHp(0), rewardItem(nullptr), isHelped(false)
 {
-	setName(npcName);
-	setMaxHp(1);
-	setHp(1);
 }
-
 Npc::~Npc()
 {
-	// 如果奖励没有交给玩家，由NPC负责释放
-	delete rewardItem;
-	rewardItem = nullptr;
+    if (rewardItem != nullptr)
+    {
+        delete rewardItem;
+        rewardItem = nullptr;
+    }
 }
-
 int Npc::getHiddenHp()
 {
-	return hiddenHp;
+    return hiddenHp;
 }
-
 Item* Npc::getRewardItem()
 {
-	return rewardItem;
+    return rewardItem;
 }
-
 bool Npc::getIsHelped()
 {
-	return isHelped;
+    return isHelped;
 }
-
 const vector<string> Npc::getTalkOptions()
 {
-	return talkOptions;
+    return talkOptions;
 }
-
 void Npc::setHiddenHp(int hp)
 {
-	hiddenHp = max(0, hp);
+    hiddenHp = hp;
 }
-
 void Npc::setRewardItem(Item* item)
 {
-	if (rewardItem != item)
-	{
-		delete rewardItem;
-	}
-
-	rewardItem = item;
+    rewardItem = item;
 }
-
 void Npc::setIsHelped(bool ishelped)
 {
-	isHelped = ishelped;
+    isHelped = ishelped;
 }
 
+// ==========重写doTalk：读取txt配置、多选择交互、帮助分支、发放奖励 ==========
 void Npc::doTalk(ColorCtrl& color)
 {
-	if (talkOptions.empty())
-	{
-		cout << getName()
-			 << "现在没有什么想说的。\n";
-		return;
-	}
+    //加载npc配置文件，只读
+    vector<NpcConfig> npcCfgs = loadNpcConfigFromTxt("npc_config.txt");
+    const NpcConfig* pCfg = findNpcConfig(npcCfgs, this->getName());
 
-	color.applyInfo();
+    color.applyInfo();
+    cout << "\n【" << getName() << "】\n";
 
-	cout << "\n【"
-		 << getName()
-		 << "】对你说：\n";
+    //如果读到外部txt对话，覆盖内置talkOptions
+    if (pCfg != nullptr && !pCfg->talkLines.empty())
+    {
+        talkOptions.clear();
+        for (auto& s : pCfg->talkLines)
+        {
+            talkOptions.push_back(s);
+        }
+    }
 
-	for (size_t i = 0; i < talkOptions.size(); ++i)
-	{
-		cout << i + 1
-			 << ". "
-			 << talkOptions[i]
-			 << '\n';
-	}
+    if (talkOptions.empty())
+    {
+        cout << getName() << "默默看着你，没有说话。\n";
+        color.resetColor();
+        return;
+    }
 
-	color.resetColor();
+    //打印对话选项
+    for (size_t i = 0; i < talkOptions.size(); i++)
+    {
+        cout << i + 1 << ". " << talkOptions[i] << endl;
+    }
+    cout << (talkOptions.size() + 1) << ".结束对话离开\n";
+    color.resetColor();
 
-	cout << "请选择对话选项：";
+    cout << "\n请输入你的选择数字：";
+    int opt;
+    cin >> opt;
+    int maxOpt = (int)talkOptions.size() + 1;
+    if (opt < 1 || opt > maxOpt)
+    {
+        cout << "无效选择，你结束了交谈。\n";
+        return;
+    }
+    if (opt == maxOpt)
+    {
+        cout << "你转身离开。\n";
+        return;
+    }
 
-	int opt = 0;
+    //处理选中对话分支
+    int selectedIndex = opt - 1;
+    string selectedTalk = talkOptions[selectedIndex];
+    cout << "\n>你：" << selectedTalk << "\n";
 
-	if (!(cin >> opt))
-	{
-		cin.clear();
+    //约定：第2个选项（下标1）=帮助选项
+    bool triggerHelp = (selectedIndex == 1);
+    if (triggerHelp)
+    {
+       
+        
+            if (this->isHelped)
+            {
+                cout << getName() << "：谢谢你，我已经得到过你的帮助了。\n";
+                return;
+            }
+            if (pCfg == nullptr)
+            {
+                cout << getName() << "：感谢你的好意，但我没有东西可以回报你。\n";
+                return;
+            }
+            cout << pCfg->helpTip << "\n";
 
-		cin.ignore(
-			(numeric_limits<streamsize>::max)(),
-			'\n'
-		);
+            Item* newReward = nullptr;
+            if (pCfg->rewardType == "Weapon")
+            {
+                Weapon* w = new Weapon(pCfg->rewardName, pCfg->rewardAtkBonus, pCfg->rewardPrice);
+                w->description = pCfg->rewardDesc;
+                newReward = w;
+            }
+            else if (pCfg->rewardType == "Consumable")
+            {
+                Consumable* c = new Consumable(pCfg->rewardName, pCfg->rewardRestore, pCfg->rewardTempAtk, pCfg->rewardDuration);
+                c->description = pCfg->rewardDesc;
+                newReward = c;
+            }
 
-		cout << "输入无效。\n";
-		return;
-	}
-
-	if (
-		opt < 1 ||
-		opt > static_cast<int>(talkOptions.size())
-	)
-	{
-		cout << "对话选项不存在。\n";
-		return;
-	}
-
-	cout << "你选择了："
-		 << talkOptions[opt - 1]
-		 << '\n';
-}
-
-void Npc::doTalk(
-	Player& player,
-	ColorCtrl& color
-)
-{
-	// 模块五再把对话选项与onHelp等行为连接
-	(void)player;
-
-	doTalk(color);
+            if (newReward != nullptr)
+            {
+                this->setRewardItem(newReward);
+                
+            }
+            // =========重点！这里删掉 setIsHelped(true); =========
+            cout << getName() << "：非常感谢！稍后会把答谢的物品交给你。\n";
+        
+       
+    }
+    else
+    {
+        cout << getName() << "：只是点点头，听你说完。\n";
+    }
 }
 
 void Npc::addTalkOption(string option)
 {
-	if (!option.empty())
-	{
-		talkOptions.push_back(option);
-	}
+    talkOptions.push_back(option);
 }
 
+// onHelp：发放奖励道具到玩家背包
 void Npc::onHelp(Player& player)
 {
-	if (isHelped)
-	{
-		cout << getName()
-			 << "已经得到过你的帮助。\n";
-		return;
-	}
-
-	if (rewardItem != nullptr)
-	{
-		if (!player.addItem(rewardItem))
-		{
-			cout << "背包已满，暂时无法领取奖励。\n";
-			return;
-		}
-
-		// 所有权已经交给Player
-		rewardItem = nullptr;
-
-		cout << getName()
-			 << "给了你奖励物品！\n";
-	}
-
-	isHelped = true;
+    
+    if (!isHelped)
+    {
+        isHelped = true;
+        if (rewardItem != nullptr)
+        {
+            
+            if (player.addItem(rewardItem))
+            {
+                cout << getName() << "给了你奖励【" << rewardItem->name << "】，已放入背包！\n";
+                //重要：npc不再持有这个指针，所有权交给player背包
+                rewardItem = nullptr;
+            }
+            else
+            {
+                cout << "背包已满！无法接收NPC的奖励！\n";
+                //背包满，释放内存，防止内存泄漏
+                delete rewardItem;
+                rewardItem = nullptr;
+            }
+        }
+    }
 }
 
 void Npc::onAttack(Player& player)
 {
-	(void)player;
-
-	cout << getName()
-		 << "躲开了你的攻击！\n";
-}
-
-// ==================== MerchantNpc实现 ====================
-
-MerchantNpc::MerchantNpc(string name)
-	: Npc(name)
-{
-}
-
-const vector<Weapon>
-MerchantNpc::getShopWeapons()
-{
-	return shopWeapon;
-}
-
-const vector<Consumable>
-MerchantNpc::getShopConsumable()
-{
-	return shopConsumable;
-}
-
-void MerchantNpc::AddshopWeapon(Weapon& wea)
-{
-	shopWeapon.push_back(wea);
-}
-
-void MerchantNpc::addShopConsumable(
-	Consumable& con
-)
-{
-	shopConsumable.push_back(con);
-}
-
-void MerchantNpc::showShop(ColorCtrl& color)
-{
-	color.applyOption();
-
-	cout << "\n====商人商店====\n";
-	cout << "【武器列表】\n";
-
-	for (size_t i = 0; i < shopWeapon.size(); ++i)
-	{
-		cout << i + 1
-			 << ". "
-			 << shopWeapon[i].name
-			 << " |攻击+"
-			 << shopWeapon[i].atkBonus
-			 << " |价格:"
-			 << shopWeapon[i].price
-			 << '\n';
-	}
-
-	cout << "\n【消耗品列表】\n";
-
-	for (
-		size_t i = 0;
-		i < shopConsumable.size();
-		++i
-	)
-	{
-		cout << i + 1
-			 << ". "
-			 << shopConsumable[i].name
-			 << " |回血"
-			 << shopConsumable[i].Restore
-			 << " |价格:"
-			 << shopConsumable[i].price
-			 << '\n';
-	}
-
-	color.resetColor();
-}
-
-bool MerchantNpc::buyWeapon(
-	Player& player,
-	int idx
-)
-{
-	if (
-		idx < 0 ||
-		idx >= static_cast<int>(shopWeapon.size())
-	)
-	{
-		return false;
-	}
-
-	Weapon& weapon = shopWeapon[idx];
-
-	if (player.getMoney() < weapon.price)
-	{
-		return false;
-	}
-
-	if (player.isInventoryFull())
-	{
-		return false;
-	}
-
-	Weapon* newWeapon = new Weapon(
-		weapon.id,
-		weapon.name,
-		weapon.atkBonus,
-		weapon.price,
-		weapon.description
-	);
-
-	if (!player.addItem(newWeapon))
-	{
-		delete newWeapon;
-		return false;
-	}
-
-	player.setMoney(
-		player.getMoney() - weapon.price
-	);
-
-	return true;
-}
-
-bool MerchantNpc::buyConsumable(
-	Player& player,
-	int idx
-)
-{
-	if (
-		idx < 0 ||
-		idx >= static_cast<int>(
-			shopConsumable.size()
-		)
-	)
-	{
-		return false;
-	}
-
-	Consumable& consumable =
-		shopConsumable[idx];
-
-	if (player.getMoney() < consumable.price)
-	{
-		return false;
-	}
-
-	if (player.isInventoryFull())
-	{
-		return false;
-	}
-
-	Consumable* newConsumable =
-		new Consumable(
-			consumable.id,
-			consumable.name,
-			consumable.Restore,
-			consumable.atkBounsTemp,
-			consumable.duration,
-			consumable.price,
-			consumable.description
-		);
-
-	if (!player.addItem(newConsumable))
-	{
-		delete newConsumable;
-		return false;
-	}
-
-	player.setMoney(
-		player.getMoney() -
-		consumable.price
-	);
-
-	return true;
-}
-
-int MerchantNpc::getWeaponPrice(int idx)
-{
-	if (
-		idx < 0 ||
-		idx >= static_cast<int>(shopWeapon.size())
-	)
-	{
-		return -1;
-	}
-
-	return shopWeapon[idx].price;
-}
-
-int MerchantNpc::getConsumablePrice(int idx)
-{
-	if (
-		idx < 0 ||
-		idx >= static_cast<int>(
-			shopConsumable.size()
-		)
-	)
-	{
-		return -1;
-	}
-
-	return shopConsumable[idx].price;
+    cout << getName() << "躲开了你的攻击！\n";
 }
